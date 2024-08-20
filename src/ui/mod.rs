@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::io::Stdout;
 use std::time::Duration;
 
@@ -16,6 +15,7 @@ use ratatui::crossterm::terminal::{
 
 use ratatui::crossterm::event::{
     Event,
+    KeyCode,
     poll as poll_event,
     read as read_event
 };
@@ -38,6 +38,7 @@ pub enum WindowUpdate {
     None
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowMode {
     /// Keys are handled by the application
     /// to navigate through the interface.
@@ -63,7 +64,7 @@ pub trait Window {
     ///
     /// This method is called in a loop without any delay.
     async fn update(&mut self) -> anyhow::Result<WindowUpdate> {
-        Ok(WindowUpdate::None)
+        Ok(WindowUpdate::Draw)
     }
 
     /// Handle incoming event.
@@ -75,14 +76,36 @@ pub trait Window {
 /// Draw window in the terminal.
 fn draw_window(
     window: &mut Box<dyn Window + Send + Sync>,
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    mode: WindowMode
 ) -> anyhow::Result<()> {
     terminal.draw(|frame| {
         let [frame_rect, status_bar_rect] = Layout::vertical([
             Constraint::Fill(1),
-            Constraint::Length(3)
+            Constraint::Length(1)
         ]).areas(frame.size());
 
+        // Draw the status bar.
+        let status_bar = match mode {
+            WindowMode::Navigate => Paragraph::new("Navigate")
+                .left_aligned()
+                .white()
+                .on_blue(),
+
+            WindowMode::Search => Paragraph::new("Search")
+                .left_aligned()
+                .white()
+                .on_magenta(),
+
+            WindowMode::Insert => Paragraph::new("Insert")
+                .left_aligned()
+                .white()
+                .on_green()
+        };
+
+        frame.render_widget(status_bar, status_bar_rect);
+
+        // Draw the window.
         window.draw(frame_rect, frame);
     })?;
 
@@ -103,7 +126,7 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
         // Update the window.
         if let Some(window) = windows.last_mut() {
             match window.update().await? {
-                WindowUpdate::Draw => draw_window(window, &mut terminal)?,
+                WindowUpdate::Draw => draw_window(window, &mut terminal, mode)?,
 
                 WindowUpdate::New(new_window) => windows.push(new_window),
 
@@ -123,12 +146,60 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                 let event = read_event()?;
 
                 match mode {
-                    WindowMode::Navigate => (),
-                    WindowMode::Search => (),
+                    WindowMode::Navigate => {
+                        if let Event::Key(key) = event {
+                            match key.code {
+                                // Close the current window.
+                                KeyCode::Char('q') | KeyCode::Backspace => {
+                                    windows.pop();
+
+                                    terminal.clear()?;
+                                }
+
+                                // Switch to the insert mode.
+                                KeyCode::Char('i') | KeyCode::Insert => {
+                                    mode = WindowMode::Insert;
+                                }
+
+                                // Switch to the search mode.
+                                KeyCode::Char('f') | KeyCode::Char(' ') => {
+                                    mode = WindowMode::Search;
+
+                                    // TODO: open spotlight window
+                                }
+
+                                _ => ()
+                            }
+                        }
+                    }
+
+                    WindowMode::Search => {
+                        // Change mode to navigate if escape is pressed.
+                        if let Event::Key(key) = &event {
+                            if key.code == KeyCode::Esc {
+                                mode = WindowMode::Navigate;
+
+                                continue;
+                            }
+                        }
+
+                        // Otherwise handle the event.
+                        todo!()
+                    }
 
                     WindowMode::Insert => {
+                        // Change mode to navigate if escape is pressed.
+                        if let Event::Key(key) = &event {
+                            if key.code == KeyCode::Esc {
+                                mode = WindowMode::Navigate;
+
+                                continue;
+                            }
+                        }
+
+                        // Otherwise handle the event.
                         match window.handle(event).await? {
-                            WindowUpdate::Draw => draw_window(window, &mut terminal)?,
+                            WindowUpdate::Draw => draw_window(window, &mut terminal, mode)?,
 
                             WindowUpdate::New(new_window) => windows.push(new_window),
 
