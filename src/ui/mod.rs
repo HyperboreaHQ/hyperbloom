@@ -21,6 +21,7 @@ use ratatui::crossterm::event::{
 };
 
 pub mod login_window;
+pub mod spotlight_dialog;
 
 pub const EVENT_UPDATE_DURATION: Duration = Duration::from_millis(50);
 
@@ -54,6 +55,9 @@ pub enum WindowMode {
 
 #[async_trait::async_trait]
 pub trait Window {
+    /// Get title of the window.
+    fn get_title(&self) -> String;
+
     /// Draw the window's interface.
     ///
     /// This method is called when the `update` method
@@ -64,7 +68,7 @@ pub trait Window {
     ///
     /// This method is called in a loop without any delay.
     async fn update(&mut self) -> anyhow::Result<WindowUpdate> {
-        Ok(WindowUpdate::Draw)
+        Ok(WindowUpdate::None)
     }
 
     /// Handle incoming event.
@@ -132,8 +136,12 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
 
                 WindowUpdate::Close => {
                     windows.pop();
-
                     terminal.clear()?;
+
+                    // Draw the new window.
+                    if let Some(next_window) = windows.last_mut() {
+                        draw_window(next_window, &mut terminal, mode)?;
+                    }
                 }
 
                 WindowUpdate::None => ()
@@ -152,8 +160,12 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                                 // Close the current window.
                                 KeyCode::Char('q') | KeyCode::Backspace => {
                                     windows.pop();
-
                                     terminal.clear()?;
+
+                                    // Draw the new window.
+                                    if let Some(next_window) = windows.last_mut() {
+                                        draw_window(next_window, &mut terminal, mode)?;
+                                    }
                                 }
 
                                 // Switch to the insert mode.
@@ -165,7 +177,7 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                                 KeyCode::Char('f') | KeyCode::Char(' ') => {
                                     mode = WindowMode::Search;
 
-                                    // TODO: open spotlight window
+                                    windows.push(Box::new(spotlight_dialog::SpotlightDialog::new()));
                                 }
 
                                 _ => ()
@@ -179,12 +191,36 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                             if key.code == KeyCode::Esc {
                                 mode = WindowMode::Navigate;
 
+                                windows.pop();
+                                terminal.clear()?;
+
+                                // Draw the new window.
+                                if let Some(next_window) = windows.last_mut() {
+                                    draw_window(next_window, &mut terminal, mode)?;
+                                }
+
                                 continue;
                             }
                         }
 
                         // Otherwise handle the event.
-                        todo!()
+                        match window.handle(event).await? {
+                            WindowUpdate::Draw => draw_window(window, &mut terminal, mode)?,
+
+                            WindowUpdate::New(new_window) => windows.push(new_window),
+
+                            WindowUpdate::Close => {
+                                windows.pop();
+                                terminal.clear()?;
+
+                                // Draw the new window.
+                                if let Some(next_window) = windows.last_mut() {
+                                    draw_window(next_window, &mut terminal, mode)?;
+                                }
+                            }
+
+                            WindowUpdate::None => ()
+                        }
                     }
 
                     WindowMode::Insert => {
@@ -205,8 +241,12 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
 
                             WindowUpdate::Close => {
                                 windows.pop();
-
                                 terminal.clear()?;
+
+                                // Draw the new window.
+                                if let Some(next_window) = windows.last_mut() {
+                                    draw_window(next_window, &mut terminal, mode)?;
+                                }
                             }
 
                             WindowUpdate::None => ()
