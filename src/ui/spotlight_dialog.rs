@@ -2,15 +2,42 @@ use ratatui::widgets::*;
 
 use super::*;
 
-#[derive(Debug, Clone, Default)]
+pub struct SpotlightEntry {
+    pub category: String,
+    pub title: String,
+    pub action: Box<dyn FnOnce() + Send + Sync>
+}
+
+impl SpotlightEntry {
+    pub fn matches(&self, input: impl AsRef<str>) -> u16 {
+        let category = self.category.to_lowercase();
+        let title = self.title.to_lowercase();
+
+        input.as_ref()
+            .to_lowercase()
+            .split_whitespace()
+            .map(|word| {
+                if category.contains(word) || title.contains(word) {
+                    1
+                } else {
+                    0
+                }
+            })
+            .sum()
+    }
+}
+
+#[derive(Default)]
 pub struct SpotlightDialog {
-    search_input: String
+    search_input: String,
+    entries: Vec<SpotlightEntry>
 }
 
 impl SpotlightDialog {
-    pub fn new() -> Self {
+    pub fn new(entries: impl Into<Vec<SpotlightEntry>>) -> Self {
         Self {
-            search_input: String::new()
+            search_input: String::new(),
+            entries: entries.into()
         }
     }
 }
@@ -41,11 +68,44 @@ impl Window for SpotlightDialog {
 
         let search_input = Paragraph::new(self.search_input.as_str())
             .left_aligned()
-            .block(Block::bordered());
+            .block({
+                Block::bordered()
+                    .title("Search input")
+            });
 
+        // Render search input.
         frame.render_widget(search_input, input_area);
 
-        frame.render_widget(Paragraph::new("Hello, World!"), items_area);
+        // Search through entries.
+        let mut sorted_entries = Vec::with_capacity(self.entries.len());
+
+        for entry in &self.entries {
+            let matches = if !self.search_input.is_empty() {
+                entry.matches(&self.search_input)
+            } else {
+                1
+            };
+
+            if matches > 0 {
+                sorted_entries.push((entry, matches));
+            }
+        }
+
+        // Sort them by the matches count.
+        sorted_entries.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Render matched entries.
+        let entries_widget = List::new({
+            sorted_entries.iter()
+                .map(|(entry, _)| {
+                    ListItem::new(format!("{} > {}", entry.category, entry.title))
+                })
+        }).block({
+            Block::bordered()
+                .title("Entries")
+        });
+
+        frame.render_widget(entries_widget, items_area);
     }
 
     async fn handle(&mut self, event: Event) -> anyhow::Result<WindowUpdate> {

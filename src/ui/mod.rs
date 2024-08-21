@@ -185,7 +185,17 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                                     mode = WindowMode::Search;
                                     redraw = true;
 
-                                    windows.push(Box::new(spotlight_dialog::SpotlightDialog::new()));
+                                    let entries = windows.iter()
+                                        .map(|window| {
+                                            spotlight_dialog::SpotlightEntry {
+                                                category: String::from("Windows"),
+                                                title: window.get_title(),
+                                                action: Box::new(|| {})
+                                            }
+                                        })
+                                        .collect::<Vec<_>>();
+
+                                    windows.push(Box::new(spotlight_dialog::SpotlightDialog::new(entries)));
                                 }
 
                                 _ => ()
