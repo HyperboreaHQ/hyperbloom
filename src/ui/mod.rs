@@ -124,24 +124,33 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
 
     let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
     let mut windows = Vec::from([window]);
+
     let mut mode = WindowMode::Navigate;
+    let mut redraw = true;
 
     while !windows.is_empty() {
         // Update the window.
         if let Some(window) = windows.last_mut() {
+            if redraw {
+                draw_window(window, &mut terminal, mode)?;
+
+                redraw = false;
+            }
+
             match window.update().await? {
                 WindowUpdate::Draw => draw_window(window, &mut terminal, mode)?,
 
-                WindowUpdate::New(new_window) => windows.push(new_window),
+                WindowUpdate::New(new_window) => {
+                    windows.push(new_window);
+
+                    redraw = true;
+                }
 
                 WindowUpdate::Close => {
                     windows.pop();
                     terminal.clear()?;
 
-                    // Draw the new window.
-                    if let Some(next_window) = windows.last_mut() {
-                        draw_window(next_window, &mut terminal, mode)?;
-                    }
+                    redraw = true;
                 }
 
                 WindowUpdate::None => ()
@@ -162,20 +171,19 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                                     windows.pop();
                                     terminal.clear()?;
 
-                                    // Draw the new window.
-                                    if let Some(next_window) = windows.last_mut() {
-                                        draw_window(next_window, &mut terminal, mode)?;
-                                    }
+                                    redraw = true;
                                 }
 
                                 // Switch to the insert mode.
                                 KeyCode::Char('i') | KeyCode::Insert => {
                                     mode = WindowMode::Insert;
+                                    redraw = true;
                                 }
 
                                 // Switch to the search mode.
                                 KeyCode::Char('f') | KeyCode::Char(' ') => {
                                     mode = WindowMode::Search;
+                                    redraw = true;
 
                                     windows.push(Box::new(spotlight_dialog::SpotlightDialog::new()));
                                 }
@@ -190,14 +198,10 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                         if let Event::Key(key) = &event {
                             if key.code == KeyCode::Esc {
                                 mode = WindowMode::Navigate;
+                                redraw = true;
 
                                 windows.pop();
                                 terminal.clear()?;
-
-                                // Draw the new window.
-                                if let Some(next_window) = windows.last_mut() {
-                                    draw_window(next_window, &mut terminal, mode)?;
-                                }
 
                                 continue;
                             }
@@ -207,16 +211,17 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                         match window.handle(event).await? {
                             WindowUpdate::Draw => draw_window(window, &mut terminal, mode)?,
 
-                            WindowUpdate::New(new_window) => windows.push(new_window),
+                            WindowUpdate::New(new_window) => {
+                                windows.push(new_window);
+
+                                redraw = true;
+                            }
 
                             WindowUpdate::Close => {
                                 windows.pop();
                                 terminal.clear()?;
 
-                                // Draw the new window.
-                                if let Some(next_window) = windows.last_mut() {
-                                    draw_window(next_window, &mut terminal, mode)?;
-                                }
+                                redraw = true;
                             }
 
                             WindowUpdate::None => ()
@@ -228,6 +233,7 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                         if let Event::Key(key) = &event {
                             if key.code == KeyCode::Esc {
                                 mode = WindowMode::Navigate;
+                                redraw = true;
 
                                 continue;
                             }
@@ -237,16 +243,17 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                         match window.handle(event).await? {
                             WindowUpdate::Draw => draw_window(window, &mut terminal, mode)?,
 
-                            WindowUpdate::New(new_window) => windows.push(new_window),
+                            WindowUpdate::New(new_window) => {
+                                windows.push(new_window);
+
+                                redraw = true;
+                            }
 
                             WindowUpdate::Close => {
                                 windows.pop();
                                 terminal.clear()?;
 
-                                // Draw the new window.
-                                if let Some(next_window) = windows.last_mut() {
-                                    draw_window(next_window, &mut terminal, mode)?;
-                                }
+                                redraw = true;
                             }
 
                             WindowUpdate::None => ()

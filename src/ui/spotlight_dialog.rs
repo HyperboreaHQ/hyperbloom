@@ -35,7 +35,7 @@ impl Window for SpotlightDialog {
         ]).areas(area);
 
         let [input_area, items_area] = Layout::vertical([
-            Constraint::Length(1),
+            Constraint::Length(3),
             Constraint::Fill(1)
         ]).areas(area);
 
@@ -61,8 +61,10 @@ impl Window for SpotlightDialog {
 
                 _ => ()
             }
+
+            return Ok(WindowUpdate::Draw);
         }
 
-        Ok(WindowUpdate::Draw)
+        Ok(WindowUpdate::None)
     }
 }
