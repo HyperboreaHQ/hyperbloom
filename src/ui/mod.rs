@@ -91,17 +91,17 @@ fn draw_window(
 
         // Draw the status bar.
         let status_bar = match mode {
-            WindowMode::Navigate => Paragraph::new("Navigate")
+            WindowMode::Navigate => Paragraph::new(" Navigate")
                 .left_aligned()
                 .white()
                 .on_blue(),
 
-            WindowMode::Search => Paragraph::new("Search")
+            WindowMode::Search => Paragraph::new(" Search")
                 .left_aligned()
                 .white()
                 .on_magenta(),
 
-            WindowMode::Insert => Paragraph::new("Insert")
+            WindowMode::Insert => Paragraph::new(" Insert")
                 .left_aligned()
                 .white()
                 .on_green()
