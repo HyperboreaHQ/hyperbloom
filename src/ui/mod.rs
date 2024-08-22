@@ -162,6 +162,37 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
             if poll_event(EVENT_UPDATE_DURATION)? {
                 let event = read_event()?;
 
+                // Handle global events.
+                if let Event::Key(key) = &event {
+                    match key.code {
+                        KeyCode::Esc if mode == WindowMode::Insert => {
+                            mode = WindowMode::Navigate;
+                            redraw = true;
+
+                            continue;
+                        }
+
+                        KeyCode::Esc if mode == WindowMode::Search => {
+                            mode = WindowMode::Navigate;
+                            redraw = true;
+
+                            windows.pop();
+                            terminal.clear()?;
+
+                            continue;
+                        }
+
+                        _ => ()
+                    }
+                }
+
+                else if let Event::Resize(_, _) = &event {
+                    // Allow windows to handle this event, though
+                    // forcely redraw the window.
+                    redraw = true;
+                }
+
+                // Handle other events.
                 match mode {
                     WindowMode::Navigate => {
                         if let Event::Key(key) = event {
@@ -195,7 +226,7 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                                         })
                                         .collect::<Vec<_>>();
 
-                                    windows.push(Box::new(spotlight_dialog::SpotlightDialog::new(entries)));
+                                    windows.push(spotlight_dialog::SpotlightDialog::new(entries));
                                 }
 
                                 _ => ()
@@ -204,20 +235,6 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                     }
 
                     WindowMode::Search => {
-                        // Change mode to navigate if escape is pressed.
-                        if let Event::Key(key) = &event {
-                            if key.code == KeyCode::Esc {
-                                mode = WindowMode::Navigate;
-                                redraw = true;
-
-                                windows.pop();
-                                terminal.clear()?;
-
-                                continue;
-                            }
-                        }
-
-                        // Otherwise handle the event.
                         match window.handle(event).await? {
                             WindowUpdate::Draw => draw_window(window, &mut terminal, mode)?,
 
@@ -239,17 +256,6 @@ pub async fn run(window: Box<dyn Window + Send + Sync>) -> anyhow::Result<()> {
                     }
 
                     WindowMode::Insert => {
-                        // Change mode to navigate if escape is pressed.
-                        if let Event::Key(key) = &event {
-                            if key.code == KeyCode::Esc {
-                                mode = WindowMode::Navigate;
-                                redraw = true;
-
-                                continue;
-                            }
-                        }
-
-                        // Otherwise handle the event.
                         match window.handle(event).await? {
                             WindowUpdate::Draw => draw_window(window, &mut terminal, mode)?,
 
