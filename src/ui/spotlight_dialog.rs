@@ -34,11 +34,11 @@ pub struct SpotlightDialog {
 }
 
 impl SpotlightDialog {
-    pub fn new(entries: impl Into<Vec<SpotlightEntry>>) -> Self {
-        Self {
+    pub fn new(entries: impl Into<Vec<SpotlightEntry>>) -> Box<Self> {
+        Box::new(Self {
             search_input: String::new(),
             entries: entries.into()
-        }
+        })
     }
 }
 
